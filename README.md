@@ -1,4 +1,4 @@
 dust
 ====
 
-an GUI framework for Windows
+a GUI framework for Windows
