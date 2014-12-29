@@ -40,6 +40,7 @@ impl Wnd for Button{
     match msg{
       513=>{
         println!(" clicked ! ={}", self.GetText());
+        self.SetText("我改了!");
       },
       _=>{}
     }

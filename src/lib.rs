@@ -54,6 +54,12 @@ pub trait Wnd{
     }
     "".to_string()
   }
+  fn SetText(&self, text:&str){
+    let hWnd=self.getHwnd();
+    unsafe{
+      SetWindowTextW(hWnd,UTF82UCS2(text).as_ptr());
+    }
+  }
 }
 
 pub extern "stdcall" fn emptyWndProc(_a:HWND,_b: u32,_c: c_int,_d: c_int)->c_int{0}

@@ -28,9 +28,11 @@ extern "stdcall"{
 
   pub fn ShowWindow(hWnd: HWND, mode:c_int)->c_int;
 
+  //Window Text
   pub fn GetWindowTextLengthW(hWnd:HWND)->c_int;
   pub fn GetWindowTextW(hWnd:HWND,lp:*const u16,cch:u32);
-  
+  pub fn SetWindowTextW(hwnd:HWND, text: * const u16);
+
   pub fn GetLastError()->u32;
   pub fn CallWindowProcW(wndProc:WndProc, hWnd:HWND, msg:u32, wparam:c_int, lparam:c_int)->int;
   pub fn InitCommonControlsEx(icex:* const INITCOMMONCONTROLSEX);
