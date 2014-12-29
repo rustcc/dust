@@ -4,20 +4,27 @@
 
 use libc::{c_int,c_void};
 
+use std::rc::Rc;
+use std::cell::RefCell;
+
 use super::super::win::types::*;
 use super::super::win::api::*;
 use super::super::win::encode::*;
-use super::super::{Dust,Wnd,TLS_DUST,hookWndCreate,UnHookWndCreate};
+use super::super::widgets::button::Button;
+use super::super::{Dust,Wnd,TLS_DUST,hookWndCreate,UnHookWndCreate,emptyWndProc};
 
+//use super::super::widgets::button::Button;
 
 // 所有窗口 组件 都必须实现的接口。
 // 部分方法 preTranslate wndProc 消息映射需要用到.
+
 pub struct Window{
   hWnd: HWND,
   wndProc: WndProc
 }
 
 impl Wnd for Window{
+//  fn getSelf(&mut self)->&mut Window{self}
   fn preTranslate(&self,hWnd: HWND,msg:& mut MSG)->bool
   {
     unsafe{
@@ -26,32 +33,46 @@ impl Wnd for Window{
     }
     false
   }
-  fn getWndProc(&self)->WndProc{
-      self.wndProc
-  }
+  fn setHwnd(&mut self,h: HWND){self.hWnd=h; }
+  fn setwndProc(&mut self,p: WndProc){self.wndProc=p;}
+  fn getWndProc(&self)->WndProc{self.wndProc}
+  fn getHwnd(&self)->HWND{self.hWnd}
 
-  fn wndProc(&self, _hWnd: HWND, _msg:u32, _wparam:c_int, _lparam:c_int)->int
+  fn wndProc(&self, hWnd: HWND, msg:u32, wparam:c_int, lparam:c_int)->int
   {
-    unsafe{
-      return CallWindowProcW(self.wndProc, _hWnd, _msg, _wparam, _lparam);
+  //  println!("HWND={}, msg={}, wparam={}, lparam={}", hWnd, msg, wparam, lparam);
+    match msg{
+      1=>{ //创建完毕
+        Button::new(self, "点点点",10,10,200,25);
+      },
+      _=>{
+
+      }
     }
+    unsafe{
+      return CallWindowProcW(self.wndProc, hWnd, msg, wparam, lparam);
+    }
+  }
+}
+impl Drop for Window{
+  fn drop(&mut self){
+    println!("drop window");
   }
 }
 
 extern "stdcall" fn defWindowProc(hWnd:HWND, msg: u32, wparam: c_int,lparam: c_int)->c_int{
   unsafe{
-    DefWindowProcA(hWnd,msg,wparam,lparam)
+    DefWindowProcW(hWnd,msg,wparam,lparam)
   }
 }
-pub extern "stdcall" fn emptyWndProc(_a:HWND,_b: u32,_c: c_int,_d: c_int)->c_int{
-  0
-}
+
 
 impl Window{
-  pub fn new(title:&str, x:int, y:int, width:int, height:int,parent:Option<&Window>)->Box<Window>
+  pub fn new(title:&str, x:int, y:int, width:int, height:int,parent:Option<&Window>)->bool
   {
-      let mut win = box Window{hWnd:0 as HWND, wndProc:emptyWndProc};
+      let mut win = box Window {hWnd:0 as HWND, wndProc:emptyWndProc};
       let hWnd= if parent.is_some(){ parent.unwrap().hWnd}else{0 as HWND};
+      let mut mhWnd:HWND= 0 as HWND;
       let wndcls = UTF82UCS2("rust-window");
       unsafe{
         // InitCommonControls/();
@@ -71,21 +92,17 @@ impl Window{
             hIconSm:0
         };
 
-        RegisterClassExW(&cls);
 
-        hookWndCreate(&win);
-        win.hWnd = CreateWindowExW(0, wndcls.as_ptr(), UTF82UCS2(title).as_ptr(), 13565952, 0, 0, 800, 600, 0 as HWND, 0, handle, 0);
+        RegisterClassExW(&cls);
+        hookWndCreate(win);
+
+        mhWnd = CreateWindowExW(0, wndcls.as_ptr(), UTF82UCS2(title).as_ptr(), 13565952, 0, 0, 800, 600, 0 as HWND, 0, handle, 0);
         UnHookWndCreate();
         // 默认情况下 显示该窗口
-        ShowWindow(win.hWnd, 5);
 
-        if 0 as HWND != win.hWnd {
-          TLS_DUST.with( | d | {
-            d.borrow_mut().window_counter+=1;
-          });
-        }
+        ShowWindow(mhWnd, 5);
       }
-      win
+      true
   }
   pub fn hwnd(&self)->HWND{
     self.hWnd

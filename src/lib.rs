@@ -11,18 +11,26 @@ use window::window::Window;
 
 use std::collections::HashMap;
 use std::thread::Thread;
-use std::cell::RefCell;
+
+use std::rc::Rc;
+use std::cell::{RefCell,UnsafeCell};
 
 pub mod win;
 pub mod window;
 pub mod widgets;
 
 
-trait Wnd{
+static NULL_HWND:HWND = 0 as HWND;
+
+pub trait Wnd{
+//  fn getSelf(&mut self)->&mut Self;
   fn preTranslate(&self,_hWnd: HWND,_msg:& mut MSG)->bool{
     true
   }
   fn getWndProc(&self)->WndProc;
+  fn setHwnd(&mut self,h: HWND){}
+  fn getHwnd(&self)->HWND{NULL_HWND}
+  fn setwndProc(&mut self,p: WndProc){}
 
   fn wndProc(&self, hWnd: HWND, msg:u32, wparam:c_int, lparam:c_int)->int
   {
@@ -37,57 +45,87 @@ trait Wnd{
     }
     h as HWND
   }
-  fn CreateWindowX(&self, parent:HWND)->HWND
-  {
-    0 as HWND
-  }
 }
 
-
+pub extern "stdcall" fn emptyWndProc(_a:HWND,_b: u32,_c: c_int,_d: c_int)->c_int{0}
 pub struct Dust{
   window_counter:int,
   hInstance:c_int,
   hookId: int,
-  widgets:HashMap<HWND, Window>,
+  sysFont:c_int,
+  widgets:HashMap<HWND, Rc<RefCell<Box<Wnd + 'static>>>>,
 }
 
-fn dust()->RefCell<Dust>{
-  unsafe{
-    let mut d = Dust{
-      window_counter:0,
-      hInstance:GetModuleHandleW(0 as  * const u16),
-      hookId:0,
-      widgets: HashMap::new(),
-    };
-    let mut icex=INITCOMMONCONTROLSEX{dwSize:8,dwICC:16383};
-    return RefCell::new(d)
-  }
-}
+impl Dust {
 
-pub thread_local!(static TLS_DUST: RefCell<Dust> = dust());
+  fn new() -> Dust {
 
-extern "stdcall" fn dust_defWindowProc(hWnd:HWND, msg: u32, wparam: c_int,lparam: c_int)->c_int{
-  unsafe{
-    match msg{
-      130=>{ // WM_DESTROY 所有窗口或者组件销毁之前都会发送这个消息.
-        TLS_DUST.with( | d | {
-          let mut dust = d.borrow_mut();
-            dust.window_counter-=1;
-            PostQuitMessage(0);
-        });
-      },
-      _=>{
-
-      }
+    let icex=INITCOMMONCONTROLSEX{dwSize:8,dwICC:16383};
+    let mut hInst = 0 as c_int;
+    let font;
+    unsafe{
+      font= GetStockObject(17);
+      InitCommonControlsEx(&icex);
+      hInst = GetModuleHandleW(0 as  * const u16);
     }
-    DefWindowProcA(hWnd,msg,wparam,lparam)
+
+    Dust{
+      window_counter:0,
+      hInstance:hInst,
+      hookId:0,
+      sysFont:font,
+      widgets: HashMap::new(),
+    }
   }
+
+  fn dust() -> RefCell<Dust> {
+    RefCell::new(Dust::new())
+  }
+}
+
+pub thread_local!(static TLS_DUST: RefCell<Dust> = Dust::dust());
+
+// 所有窗体，组建 都要进入到这个消息过程，
+// 它负责将事件映射到对象自身的窗体中.
+extern "stdcall" fn dust_defWindowProc(hWnd:HWND, msg: u32, wparam: c_int,lparam: c_int)->c_int{
+  let mut recvied = false;
+  let mut ret = 0i;
+  TLS_DUST.with( | d | {
+    let w  = unsafe{ (*d.as_unsafe_cell().get()).widgets.get(&hWnd)};
+    match w {
+      Some(wnd)=>{
+        match(msg){
+          130=>{ //WM_DESTROY
+            unsafe{
+              (*d.as_unsafe_cell().get()).window_counter-=1;
+              PostQuitMessage(0);
+              recvied = true;
+              ret = unsafe{(*wnd.as_unsafe_cell().get()).wndProc(hWnd,msg,wparam,lparam)};
+              (*d.as_unsafe_cell().get()).widgets.remove(&hWnd);
+            };
+          },
+          _=>{
+            //进入到对象内部的窗体过程.
+            recvied = true;
+            ret = unsafe{(*wnd.as_unsafe_cell().get()).wndProc(hWnd,msg,wparam,lparam)};
+          }
+        };
+      },
+      _=>{}
+    };
+  });
+  if !recvied{
+    unsafe{
+      ret = DefWindowProcW(hWnd,msg,wparam,lparam) as int;
+    }
+  }
+  ret as c_int
 }
 extern "stdcall" fn window_oncreate(code:int,wparam:* const c_void,lparam: * const c_void)->c_int{
   let mut r=0i;
-  println!(">>>On create");
+
   unsafe{
-    TLS_DUST.with( | d | {
+    TLS_DUST.with( | d |->int {
         if 3 != code{
           return CallNextHookEx(code ,0, wparam,lparam);
         }
@@ -95,24 +133,43 @@ extern "stdcall" fn window_oncreate(code:int,wparam:* const c_void,lparam: * con
         if 1 == (65536i & GetClassLongA(wparam as HWND, -26i)){
           return CallNextHookEx(code ,0, wparam,lparam);
         }
-        // 修改默认窗口过程，在窗口过程中做消息映射.
-        if GetWindowLongA(wparam as HWND, -4) != dust_defWindowProc as int{
-          //  SetWindowLongA(wparam as HWND, -4, dust_defWindowProc as int);
+        let mut dust = d.borrow_mut();
+
+        dust.window_counter+=1;
+        let w = dust.widgets.remove(&NULL_HWND);
+
+        match w{
+          Some(wnd)=>{
+            let mut window = wnd.borrow_mut();
+            window.setHwnd(wparam as HWND); //存储句柄.
+            // 修改默认窗口过程，在窗口过程中做消息映射.
+            PostMessageW (wparam, 48, dust.sysFont, 1);
+            if GetWindowLongW(wparam as HWND, -4) != dust_defWindowProc as int{
+              window.setwndProc(SetWindowLongW(wparam as HWND, -4, dust_defWindowProc as int));
+              //println!(">>>>>> Set Window Long ....");
+            }
+            dust.widgets.insert(wparam as HWND, wnd.clone());
+          },
+          _=>{}
         }
+
         r = CallNextHookEx(code ,0, wparam,lparam);
-        UnhookWindowsHookEx(d.borrow().hookId)
+        UnhookWindowsHookEx(dust.hookId);
+        //dust.hookId=0;
+        0
     });
   }
   r as c_int
 }
 
-fn hookWndCreate(wnd: Box<&Wnd>)
+fn hookWndCreate(wnd :Box<Wnd + 'static>)
 {
+  let r = Rc::new(RefCell::new(wnd));
   unsafe{
     TLS_DUST.with( | d | {
-      let mut dust = d.borrow_mut();
-      //dust.widgets.insert(-1i as HWND, wnd);
-      dust.hookId = SetWindowsHookExA(5, window_oncreate, 0, GetCurrentThreadId());
+        let mut dust = d.borrow_mut();
+        dust.hookId = SetWindowsHookExA(5, window_oncreate, 0, GetCurrentThreadId());
+        dust.widgets.insert(NULL_HWND, r.clone());
     });
   }
 }

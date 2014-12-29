@@ -9,14 +9,17 @@ use dust::{msgloop};
 
 fn main()
 {
-  let main = Window::new(
-      "Dust for rust example",
+   if Window::new(
+      "Dust for rust example -- 感谢庄",
       0,0,800,600,
-      None
-  );
-  let button = Button::new(&main,
+      None,
+  ){
+      msgloop();
+  }
+  /*
+  let button = Button::new(main,
     "点击我",
     5,5,120,25
   );
-  msgloop();
+  */
 }

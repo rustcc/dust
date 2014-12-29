@@ -4,11 +4,13 @@
 
 use libc::{c_int,c_void};
 
+use std::rc::Rc;
+use std::cell::RefCell;
+
 use super::super::win::types::*;
 use super::super::win::api::*;
 use super::super::win::encode::*;
-use super::super::window::window::*;
-use super::super::{Dust,Wnd,TLS_DUST,hookWndCreate,UnHookWndCreate};
+use super::super::{Dust,Wnd,TLS_DUST,hookWndCreate,UnHookWndCreate,emptyWndProc};
 
 
 // 所有窗口 组件 都必须实现的接口。
@@ -19,6 +21,7 @@ pub struct Button{
 }
 
 impl Wnd for Button{
+//  fn getSelf(&mut self)->&mut Self{self}
   fn preTranslate(&self,hWnd: HWND,msg:& mut MSG)->bool
   {
     unsafe{
@@ -27,40 +30,45 @@ impl Wnd for Button{
     }
     false
   }
-  fn getWndProc(&self)->WndProc{
-    self.wndProc
-  }
+  fn setHwnd(&mut self,h: HWND){self.hWnd=h; }
+  fn setwndProc(&mut self,p: WndProc){self.wndProc=p;}
+  fn getWndProc(&self)->WndProc{self.wndProc }
 
-  fn wndProc(&self, _hWnd: HWND, _msg:u32, _wparam:c_int, _lparam:c_int)->int
+  fn wndProc(&self, _hWnd: HWND, msg:u32, _wparam:c_int, _lparam:c_int)->int
   {
+    match msg{
+      513=>{
+        println!(" clicked !");
+      },
+      _=>{}
+    }
     unsafe{
-      return CallWindowProcW(self.wndProc, _hWnd, _msg, _wparam, _lparam);
+      return CallWindowProcW(self.wndProc, _hWnd, msg, _wparam, _lparam);
     }
   }
 }
 
 impl Button{
-  pub fn new(parent:&Window, title:&str,x:int,y:int,w:int,h:int)->Box<Button>
+  pub fn new(parent:&Wnd, title:&str,x:int,y:int,w:int,h:int)->bool
   {
     let mut btn = box Button{hWnd:0 as HWND, wndProc:emptyWndProc};
     let mut hInst = 0i32;
+    let mut hWnd = 0 as HWND;
 
+    hookWndCreate(btn);
     unsafe{
-      TLS_DUST.with( | dust | {
-        let d = dust.borrow();
-        hInst = d.hInstance;
-      });
-      hookWndCreate(&btn);
-      btn.hWnd = CreateWindowExW(
+    hWnd = CreateWindowExW(
         0,
         UTF82UCS2("button").as_ptr(), UTF82UCS2(title).as_ptr(),
         65536 | 1409286144, x as c_int, y as c_int, w as c_int, h as c_int,
-        parent.hwnd(), 100, hInst, 0);
-      UnHookWndCreate();
-
-      println!("Got it Button {}, parent={} GetLastError() = {}",btn.hWnd,parent.hwnd(), GetLastError());
+        parent.getHwnd(), 100, hInst, 0);
     }
-
-    btn
+    UnHookWndCreate();
+    //println!("Got it Button {}, parent={} GetLastError() = {}",btn.hWnd,parent.hwnd(), GetLastError());
+    if 0 as HWND != hWnd{
+      true
+    }else{
+      false
+    }
   }
 }
