@@ -10,8 +10,8 @@ use dust::{msgloop};
 fn main()
 {
    if Window::new(
-      "Dust for rust example -- 感谢庄",
-      0,0,800,600,
+      "秀语言的 尘土库",
+      0,0,640,480,
       None,
   ){
       msgloop();

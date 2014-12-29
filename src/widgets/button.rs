@@ -31,44 +31,45 @@ impl Wnd for Button{
     false
   }
   fn setHwnd(&mut self,h: HWND){self.hWnd=h; }
+  fn getHwnd(&self)->HWND{self.hWnd}
   fn setwndProc(&mut self,p: WndProc){self.wndProc=p;}
   fn getWndProc(&self)->WndProc{self.wndProc }
 
-  fn wndProc(&self, _hWnd: HWND, msg:u32, _wparam:c_int, _lparam:c_int)->int
+  fn wndProc(&self, hWnd: HWND, msg:u32, _wparam:c_int, _lparam:c_int)->int
   {
     match msg{
       513=>{
-        println!(" clicked !");
+        println!(" clicked ! ={}", self.GetText());
       },
       _=>{}
     }
     unsafe{
-      return CallWindowProcW(self.wndProc, _hWnd, msg, _wparam, _lparam);
+      return CallWindowProcW(self.wndProc, hWnd, msg, _wparam, _lparam);
     }
   }
 }
 
 impl Button{
-  pub fn new(parent:&Wnd, title:&str,x:int,y:int,w:int,h:int)->bool
+  pub fn new(parent:&Wnd, title:&str,x:int,y:int,w:int,h:int,id:int)->bool
   {
     let mut btn = box Button{hWnd:0 as HWND, wndProc:emptyWndProc};
     let mut hInst = 0i32;
     let mut hWnd = 0 as HWND;
-
+    println!(">>>>>>>>>>Create Edit");
     hookWndCreate(btn);
     unsafe{
-    hWnd = CreateWindowExW(
+      hWnd = CreateWindowExW(
         0,
-        UTF82UCS2("button").as_ptr(), UTF82UCS2(title).as_ptr(),
-        65536 | 1409286144, x as c_int, y as c_int, w as c_int, h as c_int,
-        parent.getHwnd(), 100, hInst, 0);
-    }
-    UnHookWndCreate();
-    //println!("Got it Button {}, parent={} GetLastError() = {}",btn.hWnd,parent.hwnd(), GetLastError());
-    if 0 as HWND != hWnd{
-      true
-    }else{
-      false
-    }
+        UTF82UCS2("Button").as_ptr(), UTF82UCS2(title).as_ptr(),
+        1409351680, x as c_int, y as c_int, w as c_int, h as c_int,
+        parent.getHwnd(), id as i32, GetModuleHandleW(0 as  * const u16), 0);
+      }
+      UnHookWndCreate();
+
+      if 0 as HWND != hWnd{
+        true
+        }else{
+          false
+        }
   }
 }

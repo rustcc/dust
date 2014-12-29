@@ -6,8 +6,10 @@ extern crate libc;
 
 use win::types::{HWND,MSG,POINT,WndProc,INITCOMMONCONTROLSEX};
 use win::api::*;
+use win::encode::*;
 use libc::{c_void,c_int};
 use window::window::Window;
+
 
 use std::collections::HashMap;
 use std::thread::Thread;
@@ -38,12 +40,19 @@ pub trait Wnd{
       return CallWindowProcW(self.getWndProc(), hWnd, msg, wparam, lparam);
     }
   }
-  fn CreateWindow(parent:HWND,exStyle:u32, name:* const u8, title: * const u8, style: u32 , x: int, y:int,w:int,h:int, hMenu:c_int,hInstance:c_int,lParam:c_int)->HWND
-  {
+  fn GetText(&self)->String{
+    let sz;
+    let hWnd=self.getHwnd();
     unsafe{
-      //return CreateWindowExA(exStyle, name, title, style, x as u32, y as u32, w as u32, h as u32, parent, hMenu, hInstance, lParam)
+      sz = GetWindowTextLengthW(hWnd);
+      let mut vec:Vec<u16> = Vec::with_capacity((1 +sz) as uint);
+      vec.set_len((sz) as uint);
+      GetWindowTextW(hWnd,vec.as_ptr(), ((1 +sz) *2) as u32);
+      vec.push(0);
+      println!("vec sz={} raw={}",sz, vec);
+      return UCS2TOUTF8(&vec);
     }
-    h as HWND
+    "".to_string()
   }
 }
 
@@ -124,6 +133,7 @@ extern "stdcall" fn dust_defWindowProc(hWnd:HWND, msg: u32, wparam: c_int,lparam
 extern "stdcall" fn window_oncreate(code:int,wparam:* const c_void,lparam: * const c_void)->c_int{
   let mut r=0i;
 
+  println!(">>>>>> Set Window Long ....{}",wparam);
   unsafe{
     TLS_DUST.with( | d |->int {
         if 3 != code{
@@ -133,28 +143,27 @@ extern "stdcall" fn window_oncreate(code:int,wparam:* const c_void,lparam: * con
         if 1 == (65536i & GetClassLongA(wparam as HWND, -26i)){
           return CallNextHookEx(code ,0, wparam,lparam);
         }
-        let mut dust = d.borrow_mut();
 
-        dust.window_counter+=1;
-        let w = dust.widgets.remove(&NULL_HWND);
+        (*d.as_unsafe_cell().get()).window_counter+=1;
+        let w = (*d.as_unsafe_cell().get()).widgets.remove(&NULL_HWND);
 
         match w{
           Some(wnd)=>{
             let mut window = wnd.borrow_mut();
             window.setHwnd(wparam as HWND); //存储句柄.
             // 修改默认窗口过程，在窗口过程中做消息映射.
-            PostMessageW (wparam, 48, dust.sysFont, 1);
+            PostMessageW (wparam, 48, (*d.as_unsafe_cell().get()).sysFont, 1);
             if GetWindowLongW(wparam as HWND, -4) != dust_defWindowProc as int{
               window.setwndProc(SetWindowLongW(wparam as HWND, -4, dust_defWindowProc as int));
-              //println!(">>>>>> Set Window Long ....");
+              println!(">>>>>> Set Window Long ....{}",wparam);
             }
-            dust.widgets.insert(wparam as HWND, wnd.clone());
+            (*d.as_unsafe_cell().get()).widgets.insert(wparam as HWND, wnd.clone());
           },
           _=>{}
         }
 
         r = CallNextHookEx(code ,0, wparam,lparam);
-        UnhookWindowsHookEx(dust.hookId);
+        UnhookWindowsHookEx((*d.as_unsafe_cell().get()).hookId);
         //dust.hookId=0;
         0
     });
@@ -168,8 +177,9 @@ fn hookWndCreate(wnd :Box<Wnd + 'static>)
   unsafe{
     TLS_DUST.with( | d | {
         let mut dust = d.borrow_mut();
-        dust.hookId = SetWindowsHookExA(5, window_oncreate, 0, GetCurrentThreadId());
+        println!("Set Hook......");
         dust.widgets.insert(NULL_HWND, r.clone());
+        dust.hookId = SetWindowsHookExA(5, window_oncreate, 0, GetCurrentThreadId());
     });
   }
 }

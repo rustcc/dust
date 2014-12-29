@@ -11,6 +11,7 @@ use super::super::win::types::*;
 use super::super::win::api::*;
 use super::super::win::encode::*;
 use super::super::widgets::button::Button;
+use super::super::widgets::edit::Edit;
 use super::super::{Dust,Wnd,TLS_DUST,hookWndCreate,UnHookWndCreate,emptyWndProc};
 
 //use super::super::widgets::button::Button;
@@ -34,16 +35,18 @@ impl Wnd for Window{
     false
   }
   fn setHwnd(&mut self,h: HWND){self.hWnd=h; }
+  fn getHwnd(&self)->HWND{self.hWnd}
   fn setwndProc(&mut self,p: WndProc){self.wndProc=p;}
   fn getWndProc(&self)->WndProc{self.wndProc}
-  fn getHwnd(&self)->HWND{self.hWnd}
 
   fn wndProc(&self, hWnd: HWND, msg:u32, wparam:c_int, lparam:c_int)->int
   {
   //  println!("HWND={}, msg={}, wparam={}, lparam={}", hWnd, msg, wparam, lparam);
     match msg{
       1=>{ //创建完毕
-        Button::new(self, "点点点",10,10,200,25);
+        Button::new(self, "点点点",10,10,200,25,100);
+        Edit::new(self,220,10,200,25,101);
+        Edit::new(self,10,45,200,25,102);
       },
       _=>{
 
@@ -68,7 +71,7 @@ extern "stdcall" fn defWindowProc(hWnd:HWND, msg: u32, wparam: c_int,lparam: c_i
 
 
 impl Window{
-  pub fn new(title:&str, x:int, y:int, width:int, height:int,parent:Option<&Window>)->bool
+  pub fn new(title:&str, x:int, y:int, w:int, h:int,parent:Option<&Window>)->bool
   {
       let mut win = box Window {hWnd:0 as HWND, wndProc:emptyWndProc};
       let hWnd= if parent.is_some(){ parent.unwrap().hWnd}else{0 as HWND};
@@ -96,7 +99,7 @@ impl Window{
         RegisterClassExW(&cls);
         hookWndCreate(win);
 
-        mhWnd = CreateWindowExW(0, wndcls.as_ptr(), UTF82UCS2(title).as_ptr(), 13565952, 0, 0, 800, 600, 0 as HWND, 0, handle, 0);
+        mhWnd = CreateWindowExW(0, wndcls.as_ptr(), UTF82UCS2(title).as_ptr(), 13565952, x as c_int, y as c_int, w as c_int, h as c_int, 0 as HWND, 0, handle, 0);
         UnHookWndCreate();
         // 默认情况下 显示该窗口
 
