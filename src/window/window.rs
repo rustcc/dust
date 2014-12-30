@@ -28,10 +28,8 @@ impl Wnd for Window{
 //  fn getSelf(&mut self)->&mut Window{self}
   fn preTranslate(&self,hWnd: HWND,msg:& mut MSG)->bool
   {
-    unsafe{
-      TranslateMessage (msg);
-      DispatchMessageW (msg);
-    }
+    msg.TranslateMessage();
+    msg.DispatchMessage();
     false
   }
   fn setHwnd(&mut self,h: HWND){self.hWnd=h; }
@@ -53,7 +51,7 @@ impl Wnd for Window{
       }
     }
     unsafe{
-      return CallWindowProcW(self.wndProc, hWnd, msg, wparam, lparam);
+      return CallWindowProcW(self.wndProc, hWnd, msg, wparam, lparam) as int;
     }
   }
 }

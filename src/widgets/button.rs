@@ -24,10 +24,8 @@ impl Wnd for Button{
 //  fn getSelf(&mut self)->&mut Self{self}
   fn preTranslate(&self,hWnd: HWND,msg:& mut MSG)->bool
   {
-    unsafe{
-      TranslateMessage (msg);
-      DispatchMessageW (msg);
-    }
+    msg.TranslateMessage();
+    msg.DispatchMessage();
     false
   }
   fn setHwnd(&mut self,h: HWND){self.hWnd=h; }
@@ -46,7 +44,7 @@ impl Wnd for Button{
       _=>{}
     }
     unsafe{
-      return CallWindowProcW(self.wndProc, hWnd, msg, _wparam, _lparam);
+      return CallWindowProcW(self.wndProc, hWnd, msg, _wparam, _lparam) as int;
     }
   }
 }

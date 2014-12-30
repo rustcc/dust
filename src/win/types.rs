@@ -3,13 +3,14 @@
 
 use libc::{c_int,c_uint, uint32_t,c_void};
 
+
 pub type HWND = * const c_void;
 pub type LPARAM = * const c_void;
 pub type WPARAM = * const c_void;
 
 pub static C_NULL:* const c_void = 0 as * const c_void;
 
-pub type WndProc =extern "stdcall" fn (HWND, u32, WPARAM,LPARAM)->c_int;
+pub type WndProc =extern "stdcall" fn (HWND, u32, WPARAM, LPARAM)->c_int;
 pub type WindowHookfn = extern "stdcall" fn(int,* const c_void, * const c_void)->c_int;
 
 #[repr(C)]
@@ -50,6 +51,38 @@ pub struct MSG{
   pub time:uint32_t,
   pub pt:POINT
 }
+
+extern "stdcall"{
+//Messages.
+pub fn PostMessageW(hWnd:HWND, msg:u32, wparam:WPARAM, lparam:LPARAM)->c_int;
+pub fn PostQuitMessage(exitCode:c_int)->c_int;
+fn GetMessageW(lpMsg:* mut MSG, hWnd:HWND, wMsgFilterMin:u32, wMsgFilterMax:u32)->bool;
+fn TranslateMessage(lpMsg:* mut MSG)->c_int;
+fn DispatchMessageW(lpMsg:* mut MSG)->c_int;
+pub fn IsDialogMessage(hWnd:HWND, lpMsg:* const MSG)->bool;
+}
+
+impl MSG{
+  pub fn GetMessage(&mut self,hWin:HWND,wMsgFilterMin:u32, wMsgFilterMax:u32)->bool{
+    unsafe{GetMessageW(self, hWin, wMsgFilterMin, wMsgFilterMax)}
+  }
+  pub fn TranslateMessage(&mut self)->int{
+    unsafe{
+      TranslateMessage(self) as int
+    }
+  }
+  pub fn DispatchMessage(&mut self)->int{
+    unsafe{
+      DispatchMessageW(self)as int
+    }
+  }
+  pub fn IsDialogMessage(&self,hWin:HWND)->bool{
+    unsafe{
+      IsDialogMessage(hWin,self)
+    }
+  }
+}
+
 
 #[repr(C)]
 pub struct INITCOMMONCONTROLSEX{

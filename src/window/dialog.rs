@@ -23,9 +23,9 @@ impl Wnd for Dialog{
         return false;
       }
       unsafe{
-        if  !IsDialogMessage(hWnd,msg) {
-          TranslateMessage(msg);
-          DispatchMessageW(msg);
+        if  msg.IsDialogMessage(hWnd) {
+          msg.TranslateMessage();
+          msg.DispatchMessage();
         }
       }
       false
