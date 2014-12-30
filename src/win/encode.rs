@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 #![allow(improper_ctypes)]
 #![allow(dead_code)]
+#![allow(unused_imports)]
 
 use libc::{c_int,c_void};
 
@@ -31,7 +32,6 @@ pub fn UCS2TOUTF8(arg:&Vec<u16>)->String
     let sz = WideCharToMultiByte(65001u,0, arg.as_ptr(), -1, 0 as * const u8, 0, 0 as * const c_void, false);
     if sz > 0{
         let mut out= String::with_capacity((sz+1) as uint);
-        let mut vec = out.as_mut_vec().set_len(sz as uint);
         WideCharToMultiByte(65001u,0, arg.as_ptr(), l, out.as_ptr(), sz, 0 as * const c_void, false);
         out.as_mut_vec().push(0);
         println!("need size={}, {}",sz,out.as_slice());

@@ -35,11 +35,11 @@ impl Wnd for Edit{
   fn setwndProc(&mut self,p: WndProc){self.wndProc=p;}
   fn getWndProc(&self)->WndProc{self.wndProc }
 
-  fn wndProc(&self, _hWnd: HWND, msg:u32, _wparam:c_int, _lparam:c_int)->int
+  fn wndProc(&self, _hWnd: HWND, msg:u32, _wparam:WPARAM, _lparam:LPARAM)->int
   {
     match msg{
       513=>{
-        println!(" clicked !");
+        println!(" clicked ! {}", _hWnd);
       },
       _=>{}
     }
@@ -53,20 +53,20 @@ impl Edit{
   pub fn new(parent:&Wnd, x:int, y:int, w:int, h:int,id:int)->bool
   {
     let mut btn = box Edit{hWnd:0 as HWND, wndProc:emptyWndProc};
-    let mut hInst = 0i32;
-    let mut hWnd = 0 as HWND;
+    let mut hInst = C_NULL;
+    let mut hWnd = C_NULL;
     println!(">>>>>>>>>>Create Edit");
     hookWndCreate(btn);
     unsafe{
       hWnd = CreateWindowExW(
         512,
         UTF82UCS2("Edit").as_ptr(), 0 as * const u16,
-        1409351680, x as c_int, y as c_int, w as c_int, h as c_int,
-        parent.getHwnd(), id as i32, GetModuleHandleW(0 as  * const u16), 0);
+        1409351680, x, y, w, h,
+        parent.getHwnd(), id as HMENU, GetModuleHandleW(0 as  * const u16), C_NULL);
     }
     UnHookWndCreate();
 
-    if 0 as HWND != hWnd{
+    if C_NULL != hWnd{
       true
     }else{
       false

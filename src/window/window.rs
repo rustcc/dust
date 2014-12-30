@@ -12,7 +12,7 @@ use super::super::win::api::*;
 use super::super::win::encode::*;
 use super::super::widgets::button::Button;
 use super::super::widgets::edit::Edit;
-use super::super::{Dust,Wnd,TLS_DUST,hookWndCreate,UnHookWndCreate,emptyWndProc};
+use super::super::{Dust,Wnd,TLS_DUST,hookWndCreate,UnHookWndCreate,emptyWndProc,MessageBox};
 
 //use super::super::widgets::button::Button;
 
@@ -39,7 +39,7 @@ impl Wnd for Window{
   fn setwndProc(&mut self,p: WndProc){self.wndProc=p;}
   fn getWndProc(&self)->WndProc{self.wndProc}
 
-  fn wndProc(&self, hWnd: HWND, msg:u32, wparam:c_int, lparam:c_int)->int
+  fn wndProc(&self, hWnd: HWND, msg:u32, wparam:WPARAM, lparam:LPARAM)->int
   {
   //  println!("HWND={}, msg={}, wparam={}, lparam={}", hWnd, msg, wparam, lparam);
     match msg{
@@ -63,7 +63,7 @@ impl Drop for Window{
   }
 }
 
-extern "stdcall" fn defWindowProc(hWnd:HWND, msg: u32, wparam: c_int,lparam: c_int)->c_int{
+extern "stdcall" fn defWindowProc(hWnd:HWND, msg: u32, wparam: WPARAM,lparam: LPARAM)->c_int{
   unsafe{
     DefWindowProcW(hWnd,msg,wparam,lparam)
   }
@@ -99,7 +99,7 @@ impl Window{
         RegisterClassExW(&cls);
         hookWndCreate(win);
 
-        mhWnd = CreateWindowExW(0, wndcls.as_ptr(), UTF82UCS2(title).as_ptr(), 13565952, x as c_int, y as c_int, w as c_int, h as c_int, 0 as HWND, 0, handle, 0);
+        mhWnd = CreateWindowExW(0, wndcls.as_ptr(), UTF82UCS2(title).as_ptr(), 13565952, x , y , w , h , hWnd, 0 as HMENU, handle, C_NULL);
         UnHookWndCreate();
         // 默认情况下 显示该窗口
 

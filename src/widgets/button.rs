@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use super::super::win::types::*;
 use super::super::win::api::*;
 use super::super::win::encode::*;
-use super::super::{Dust,Wnd,TLS_DUST,hookWndCreate,UnHookWndCreate,emptyWndProc};
+use super::super::{Dust,Wnd,TLS_DUST,hookWndCreate,UnHookWndCreate,emptyWndProc,MessageBox};
 
 
 // 所有窗口 组件 都必须实现的接口。
@@ -35,12 +35,13 @@ impl Wnd for Button{
   fn setwndProc(&mut self,p: WndProc){self.wndProc=p;}
   fn getWndProc(&self)->WndProc{self.wndProc }
 
-  fn wndProc(&self, hWnd: HWND, msg:u32, _wparam:c_int, _lparam:c_int)->int
+  fn wndProc(&self, hWnd: HWND, msg:u32, _wparam:WPARAM, _lparam:LPARAM)->int
   {
     match msg{
       513=>{
-        println!(" clicked ! ={}", self.GetText());
-        self.SetText("我改了!");
+        println!("Clicked {}",hWnd);
+        self.SetText("我改了! ");
+        //MessageBox("fuck","abc",0);
       },
       _=>{}
     }
@@ -54,20 +55,20 @@ impl Button{
   pub fn new(parent:&Wnd, title:&str,x:int,y:int,w:int,h:int,id:int)->bool
   {
     let mut btn = box Button{hWnd:0 as HWND, wndProc:emptyWndProc};
-    let mut hInst = 0i32;
-    let mut hWnd = 0 as HWND;
+    let mut hInst = C_NULL;
+    let mut hWnd:HWND = C_NULL;
     println!(">>>>>>>>>>Create Edit");
     hookWndCreate(btn);
     unsafe{
       hWnd = CreateWindowExW(
         0,
         UTF82UCS2("Button").as_ptr(), UTF82UCS2(title).as_ptr(),
-        1409351680, x as c_int, y as c_int, w as c_int, h as c_int,
-        parent.getHwnd(), id as i32, GetModuleHandleW(0 as  * const u16), 0);
+        1409351680, x, y , w , h,
+        parent.getHwnd(), id as HMENU, GetModuleHandleW(0 as  * const u16), C_NULL);
       }
       UnHookWndCreate();
 
-      if 0 as HWND != hWnd{
+      if C_NULL != hWnd{
         true
         }else{
           false
