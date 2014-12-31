@@ -4,9 +4,15 @@
 
 extern crate libc;
 
-use win::types::*;
+use win::types::{LPARAM,WPARAM,MSG,HINSTANCE};
 use win::api::*;
 use win::encode::*;
+use win::wnd::{TWnd,DWnd};
+use event::eventlistener::{TEventProcesser,EventProcesser};
+use win::types::{
+  INITCOMMONCONTROLSEX,C_NULL,WndProc,POINT,
+  PostQuitMessage,PostMessageW
+};
 use libc::{c_void,c_int};
 
 use std::collections::HashMap;
@@ -18,55 +24,19 @@ use std::mem;
 pub mod win;
 pub mod window;
 pub mod widgets;
+pub mod event;
 
 
-static NULL_HWND:HWND = 0 as HWND;
+static NULL_DWnd:DWnd = 0 as DWnd;
 
-pub trait Wnd{
-//  fn getSelf(&mut self)->&mut Self;
-  fn preTranslate(&self,_hWnd: HWND,_msg:& mut MSG)->bool{
-    true
-  }
-  fn getWndProc(&self)->WndProc;
-  fn setHwnd(&mut self,h: HWND){}
-  fn getHwnd(&self)->HWND{NULL_HWND}
-  fn setwndProc(&mut self,p: WndProc){}
 
-  fn wndProc(&self, hWnd: HWND, msg:u32, wparam:WPARAM, lparam:LPARAM)->int
-  {
-    unsafe {
-      return CallWindowProcW(self.getWndProc(), hWnd, msg, wparam, lparam) as int;
-    }
-  }
-  fn GetText(&self)->String{
-    let sz;
-    let hWnd=self.getHwnd();
-    unsafe{
-      sz = GetWindowTextLengthW(hWnd);
-      let mut vec:Vec<u16> = Vec::with_capacity((1 +sz) as uint);
-      vec.set_len((sz) as uint);
-      GetWindowTextW(hWnd,vec.as_ptr(), ((1 +sz) *2) as u32);
-      vec.push(0);
-      println!("vec sz={} raw={}",sz, vec);
-      return UCS2TOUTF8(&vec);
-    }
-    "".to_string()
-  }
-  fn SetText(&self, text:&str){
-    let hWnd=self.getHwnd();
-    unsafe{
-      SetWindowTextW(hWnd,UTF82UCS2(text).as_ptr());
-    }
-  }
-}
-
-pub extern "stdcall" fn emptyWndProc(_a:HWND,_b: u32,_c: WPARAM,_d: LPARAM)->c_int{0}
+pub extern "stdcall" fn emptyWndProc(_a:DWnd,_b: u32,_c: WPARAM,_d: LPARAM)->c_int{0}
 pub struct Dust{
   window_counter:int,
   hInstance:HINSTANCE,
   hookId: int,
   sysFont:c_int,
-  widgets:HashMap<HWND, Rc<RefCell<Box<Wnd + 'static>>>>,
+  widgets:HashMap<DWnd, Rc<RefCell<Box<TEventProcesser + 'static>>>>,
 }
 
 impl Dust {
@@ -100,7 +70,7 @@ pub thread_local!(static TLS_DUST: RefCell<Dust> = Dust::dust());
 
 // 所有窗体，组建 都要进入到这个消息过程，
 // 它负责将事件映射到对象自身的窗体中.
-extern "stdcall" fn dust_defWindowProc(hWnd:HWND, msg: u32, wparam: WPARAM,lparam: LPARAM)->c_int{
+extern "stdcall" fn dust_defWindowProc(hWnd:DWnd, msg: u32, wparam: WPARAM,lparam: LPARAM)->c_int{
   let mut recvied = false;
   let mut ret = 0i;
   TLS_DUST.with( | d | {
@@ -113,14 +83,14 @@ extern "stdcall" fn dust_defWindowProc(hWnd:HWND, msg: u32, wparam: WPARAM,lpara
               (*d.as_unsafe_cell().get()).window_counter-=1;
               PostQuitMessage(0);
               recvied = true;
-              ret = (*wnd.as_unsafe_cell().get()).wndProc(hWnd,msg,wparam,lparam);
+              ret = (*wnd.as_unsafe_cell().get()).msgProcedure(hWnd,msg,wparam,lparam);
               (*d.as_unsafe_cell().get()).widgets.remove(&hWnd);
             };
           },
           _=>{
             //进入到对象内部的窗体过程.
             recvied = true;
-            ret = unsafe{(*wnd.as_unsafe_cell().get()).wndProc(hWnd,msg,wparam,lparam)};
+            ret = unsafe{(*wnd.as_unsafe_cell().get()).msgProcedure(hWnd,msg,wparam,lparam)};
           }
         };
       },
@@ -135,7 +105,7 @@ extern "stdcall" fn dust_defWindowProc(hWnd:HWND, msg: u32, wparam: WPARAM,lpara
   ret as c_int
 }
 #[cfg(all(windows, target_word_size = "64"))]
-fn set_window_proc(hWin:HWND,callback:|WndProc|){
+fn set_window_proc(hWin:DWnd,callback:|WndProc|){
   unsafe{
     if GetWindowLongPtrW(hWin, -4) != dust_defWindowProc as * const c_void{
       callback(mem::transmute(SetWindowLongPtrW(hWin, -4, dust_defWindowProc as * const c_void)));
@@ -144,7 +114,7 @@ fn set_window_proc(hWin:HWND,callback:|WndProc|){
 }
 
 #[cfg(all(windows, target_word_size = "32"))]
-fn set_window_proc(hWin:HWND,callback:|WndProc|){
+fn set_window_proc(hWin:DWnd,callback:|WndProc|){
   unsafe{
     if GetWindowLongW(hWin, -4) != dust_defWindowProc as * const c_void{
       callback(mem::transmute(SetWindowLongW(hWin, -4, dust_defWindowProc as * const c_void)));
@@ -162,37 +132,37 @@ extern "stdcall" fn window_oncreate(code:int,wparam:* const c_void,lparam: * con
           return CallNextHookEx(code ,0, wparam,lparam);
         }
         // 跳过 IME 创建.
-        if 1 == (65536i & GetClassLongA(wparam as HWND, -26i)){
+        if 1 == (65536i & GetClassLongA(wparam as DWnd, -26i)){
           return CallNextHookEx(code ,0, wparam,lparam);
         }
 
         (*d.as_unsafe_cell().get()).window_counter+=1;
-        let w = (*d.as_unsafe_cell().get()).widgets.remove(&NULL_HWND);
+        let w = (*d.as_unsafe_cell().get()).widgets.remove(&NULL_DWnd);
 
         match w{
           Some(wnd)=>{
             let mut window = wnd.borrow_mut();
-            window.setHwnd(wparam as HWND); //存储句柄.
+            window.setHwnd(wparam as DWnd); //存储句柄.
             // 修改默认窗口过程，在窗口过程中做消息映射.
             PostMessageW (wparam, 48, (*d.as_unsafe_cell().get()).sysFont as WPARAM, 1 as LPARAM);
-            set_window_proc(wparam as HWND,|w|{
-              window.setwndProc(w);
-            });
+            set_window_proc(wparam as DWnd,|w|
+              window.setWndProc(w)
+            );
 /*
-            if GetWindowLongPtrW(wparam as HWND, -4) != dust_defWindowProc as * const c_void{
-                //window.setwndProc(SetWindowLongPtrW(wparam as HWND, -4, dust_defWindowProc as * const c_void));
+            if GetWindowLongPtrW(wparam as DWnd, -4) != dust_defWindowProc as * const c_void{
+                //window.setwndProc(SetWindowLongPtrW(wparam as DWnd, -4, dust_defWindowProc as * const c_void));
                 println!(">>>>>> Set Window Long ....{}",wparam);
             }
 
             // 修改默认窗口过程，在窗口过程中做消息映射.
             //#[cfg(target_word_size = "32")]
-            if GetWindowLongW(wparam as HWND, -4)  != dust_defWindowProc as * const c_void{
-              let ptr = SetWindowLongW(wparam as HWND, -4, dust_defWindowProc as * const c_void);
+            if GetWindowLongW(wparam as DWnd, -4)  != dust_defWindowProc as * const c_void{
+              let ptr = SetWindowLongW(wparam as DWnd, -4, dust_defWindowProc as * const c_void);
               //window.setwndProc( );
               println!(">>>>>> Set Window Long ....{}",wparam);
             }
 */
-            (*d.as_unsafe_cell().get()).widgets.insert(wparam as HWND, wnd.clone());
+            (*d.as_unsafe_cell().get()).widgets.insert(wparam as DWnd, wnd.clone());
           },
           _=>{}
         }
@@ -206,14 +176,14 @@ extern "stdcall" fn window_oncreate(code:int,wparam:* const c_void,lparam: * con
   r as c_int
 }
 
-fn hookWndCreate(wnd :Box<Wnd + 'static>)
+fn hookWndCreate(wnd :Box<TEventProcesser + 'static>)
 {
   let r = Rc::new(RefCell::new(wnd));
   unsafe{
     TLS_DUST.with( | d | {
         let mut dust = d.borrow_mut();
         println!("Set Hook......");
-        dust.widgets.insert(NULL_HWND, r.clone());
+        dust.widgets.insert(NULL_DWnd, r.clone());
         dust.hookId = SetWindowsHookExA(5, window_oncreate, 0, GetCurrentThreadId());
     });
   }
@@ -236,12 +206,18 @@ pub fn msgloop()->int
     window_counter = d.borrow().window_counter;
   });
 
-  let mut msg = MSG {handle:0 as HWND, msg:0, wparam:0, lparam:0, time:0, pt: POINT{x:0,y:0}};
+  let mut msg = MSG {handle:0 as DWnd, msg:0, wparam:0, lparam:0, time:0, pt: POINT{x:0,y:0}};
   while window_counter > 0{
     unsafe{
-      while msg.GetMessage(0 as HWND ,0, 0) {
-        msg.TranslateMessage();
-        msg.DispatchMessage();
+      while msg.GetMessage(0 as DWnd ,0, 0) {
+        let win = msg.handle;
+
+        //如果窗口没有处理该消息,直接dispatch吧//
+        if win.processMsg(&msg)
+        {
+          msg.TranslateMessage();
+          msg.DispatchMessage();
+        }
       }
     }
 

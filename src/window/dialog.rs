@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+/*
 use super::super::win::types::*;
 use super::super::win::api::*;
 use super::super::Wnd;
@@ -34,3 +35,5 @@ impl Wnd for Dialog{
     self.wndProc
   }
 }
+
+*/

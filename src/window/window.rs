@@ -7,12 +7,15 @@ use libc::{c_int,c_void};
 use std::rc::Rc;
 use std::cell::RefCell;
 
+use super::super::win::wnd::{TWnd,DWnd};
+use super::super::event::eventlistener::{TEventProcesser,EventProcesser};
 use super::super::win::types::*;
 use super::super::win::api::*;
 use super::super::win::encode::*;
-use super::super::widgets::button::Button;
-use super::super::widgets::edit::Edit;
-use super::super::{Dust,Wnd,TLS_DUST,hookWndCreate,UnHookWndCreate,emptyWndProc,MessageBox};
+use super::super::event::*;
+//use super::super::widgets::button::Button;
+//use super::super::widgets::edit::Edit;
+use super::super::{Dust,TLS_DUST,hookWndCreate,UnHookWndCreate,emptyWndProc,MessageBox};
 
 //use super::super::widgets::button::Button;
 
@@ -20,38 +23,37 @@ use super::super::{Dust,Wnd,TLS_DUST,hookWndCreate,UnHookWndCreate,emptyWndProc,
 // 部分方法 preTranslate wndProc 消息映射需要用到.
 
 pub struct Window{
-  hWnd: HWND,
-  wndProc: WndProc
+  defWindowProc: WndProc
 }
 
-impl Wnd for Window{
+impl TEventProcesser for Window{
 //  fn getSelf(&mut self)->&mut Window{self}
-  fn preTranslate(&self,hWnd: HWND,msg:& mut MSG)->bool
+  fn preTranslateMsg(&self,msg:&mut MSG)->bool
   {
     msg.TranslateMessage();
     msg.DispatchMessage();
     false
   }
-  fn setHwnd(&mut self,h: HWND){self.hWnd=h; }
-  fn getHwnd(&self)->HWND{self.hWnd}
-  fn setwndProc(&mut self,p: WndProc){self.wndProc=p;}
-  fn getWndProc(&self)->WndProc{self.wndProc}
+  fn setWndProc(&mut self,wproc:WndProc){self.defWindowProc=wproc;}
+  fn getWndProc(&self)->WndProc{self.defWindowProc}
 
-  fn wndProc(&self, hWnd: HWND, msg:u32, wparam:WPARAM, lparam:LPARAM)->int
+  fn msgProcedure(&self, hWin: DWnd, msg:u32, wparam:WPARAM, lparam:LPARAM)->int
   {
-  //  println!("HWND={}, msg={}, wparam={}, lparam={}", hWnd, msg, wparam, lparam);
+  //  println!("DWnd={}, msg={}, wparam={}, lparam={}", hWnd, msg, wparam, lparam);
     match msg{
       1=>{ //创建完毕
-        Button::new(self, "点点点",10,10,200,25,100);
-        Edit::new(self,220,10,200,25,101);
-        Edit::new(self,10,45,200,25,102);
+
+        println!("Window On Created! {} {}", hWin.GetText(),0i);
+//        Button::new(self, "点点点",10,10,200,25,100);
+//        Edit::new(self,220,10,200,25,101);
+//        Edit::new(self,10,45,200,25,102);
       },
       _=>{
 
       }
     }
     unsafe{
-      return CallWindowProcW(self.wndProc, hWnd, msg, wparam, lparam) as int;
+      return CallWindowProcW(self.defWindowProc, hWin, msg, wparam, lparam) as int;
     }
   }
 }
@@ -61,7 +63,7 @@ impl Drop for Window{
   }
 }
 
-extern "stdcall" fn defWindowProc(hWnd:HWND, msg: u32, wparam: WPARAM,lparam: LPARAM)->c_int{
+extern "stdcall" fn defWindowProc(hWnd:DWnd, msg: u32, wparam: WPARAM,lparam: LPARAM)->c_int{
   unsafe{
     DefWindowProcW(hWnd,msg,wparam,lparam)
   }
@@ -69,11 +71,11 @@ extern "stdcall" fn defWindowProc(hWnd:HWND, msg: u32, wparam: WPARAM,lparam: LP
 
 
 impl Window{
-  pub fn new(title:&str, x:int, y:int, w:int, h:int,parent:Option<&Window>)->bool
+  pub fn new(title:&str, x:int, y:int, w:int, h:int, hWndParent: DWnd)->DWnd
   {
-      let mut win = box Window {hWnd:0 as HWND, wndProc:emptyWndProc};
-      let hWnd= if parent.is_some(){ parent.unwrap().hWnd}else{0 as HWND};
-      let mut mhWnd:HWND= 0 as HWND;
+      let mut win = box Window {defWindowProc:emptyWndProc};
+
+      let mut mhWnd:DWnd= 0 as DWnd;
       let wndcls = UTF82UCS2("rust-window");
       unsafe{
         // InitCommonControls/();
@@ -97,23 +99,21 @@ impl Window{
         RegisterClassExW(&cls);
         hookWndCreate(win);
 
-        mhWnd = CreateWindowExW(0, wndcls.as_ptr(), UTF82UCS2(title).as_ptr(), 13565952, x , y , w , h , hWnd, 0 as HMENU, handle, C_NULL);
+        mhWnd = CreateWindowExW(0, wndcls.as_ptr(), UTF82UCS2(title).as_ptr(), 13565952, x , y , w , h , hWndParent, 0 as HMENU, handle, C_NULL);
         UnHookWndCreate();
         // 默认情况下 显示该窗口
 
         ShowWindow(mhWnd, 5);
       }
-      true
+      mhWnd
   }
-  pub fn hwnd(&self)->HWND{
-    self.hWnd
-  }
+
 }
 
 
 #[test]
 fn testdust()
 {
-  let wnd = Window::new("title",0,0, 800,600, 0 as HWND);
+  let wnd = Window::new("title",0,0, 800,600, 0 as DWnd);
 
 }

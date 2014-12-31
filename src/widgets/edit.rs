@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
 #![allow(unused_variables)]
-
+/*
 use libc::{c_int,c_void};
 
 use std::rc::Rc;
@@ -71,3 +71,5 @@ impl Edit{
     }
   }
 }
+
+*/

@@ -5,6 +5,7 @@
 #![allow(unused_imports)]
 
 use super::types::*;
+use super::wnd::*;
 use libc::{c_int, c_uint, c_void};
 
 #[link(name = "user32")]
@@ -33,22 +34,17 @@ extern "stdcall"{
   pub fn GetModuleHandleW(n:* const u16) ->HINSTANCE;
   //pub fn RegisterClassExA(cls:* const WNDCLASSEX)->c_int;
   pub fn RegisterClassExW(cls:* const WNDCLASSEXW)->int;
-  pub fn CreateWindowExW(exStyle:u32, name:* const u16, title: * const u16, style: u32 , x: int, y:int,w:int,h:int,parent:HWND, hMenu:HMENU,hInstance:HINSTANCE,lParam:LPARAM) ->HWND;
+  pub fn CreateWindowExW(exStyle:u32, name:* const u16, title: * const u16, style: u32 , x: int, y:int,w:int,h:int,parent:DWnd, hMenu:HMENU,hInstance:HINSTANCE,lParam:LPARAM) ->DWnd;
 
-  pub fn DefWindowProcW(hWnd:HWND, msg:u32, wparam:WPARAM, lparam:LPARAM)->c_int;
+  pub fn DefWindowProcW(hWnd:DWnd, msg:u32, wparam:WPARAM, lparam:LPARAM)->c_int;
 
-  pub fn ShowWindow(hWnd: HWND, mode:c_int)->c_int;
-
-  //Window Text
-  pub fn GetWindowTextLengthW(hWnd:HWND)->c_int;
-  pub fn GetWindowTextW(hWnd:HWND,lp:*const u16,cch:u32);
-  pub fn SetWindowTextW(hwnd:HWND, text: * const u16);
+  pub fn ShowWindow(hWnd: DWnd, mode:c_int)->c_int;
 
   pub fn GetLastError()->u32;
-  pub fn CallWindowProcW(wndProc:WndProc, hWnd:HWND, msg:u32, wparam:WPARAM, lparam:LPARAM)->c_int;
+  pub fn CallWindowProcW(wndProc:WndProc, hWnd:DWnd, msg:u32, wparam:WPARAM, lparam:LPARAM)->c_int;
   pub fn InitCommonControlsEx(icex:* const INITCOMMONCONTROLSEX);
 
-  pub fn GetClassLongA(hWnd: HWND, nindex:int)->int;
+  pub fn GetClassLongA(hWnd: DWnd, nindex:int)->int;
 
   pub fn GetCurrentThreadId()->c_int;
   // Window Hook
@@ -57,21 +53,18 @@ extern "stdcall"{
   pub fn UnhookWindowsHookEx(hookID: int)->int;
 //  WindowLong-- Only 32 bit
   #[cfg(target_word_size = "32")]
-  pub fn GetWindowLongW(hwnd:HWND, index: i32) -> * const c_void;
+  pub fn GetWindowLongW(hwnd:DWnd, index: i32) -> * const c_void;
   #[cfg(target_word_size = "32")]
-  pub fn SetWindowLongW(hwnd:HWND, index: i32, value: * const c_void)->* const c_void;
+  pub fn SetWindowLongW(hwnd:DWnd, index: i32, value: * const c_void)->* const c_void;
 
   #[cfg(target_word_size = "64")]
-  pub fn GetWindowLongPtrW(hwnd:HWND, index: i32) -> * const c_void;
+  pub fn GetWindowLongPtrW(hwnd:DWnd, index: i32) -> * const c_void;
   #[cfg(target_word_size = "64")]
-  pub fn SetWindowLongPtrW(hwnd:HWND, index: i32, value: * const c_void) -> * const c_void;
+  pub fn SetWindowLongPtrW(hwnd:DWnd, index: i32, value: * const c_void) -> * const c_void;
   //
-  pub fn GetActiveWindow()->HWND;
-  pub fn MessageBoxW(parent:HWND,string:* const u16,title:* const u16, flags: u32)->int;
+  pub fn GetActiveWindow()->DWnd;
+  pub fn MessageBoxW(parent:DWnd,string:* const u16,title:* const u16, flags: u32)->int;
   //GDI
   pub fn GetStockObject(index:c_int)->c_int;
 
-  //Encoding
-  pub fn MultiByteToWideChar(codePage:uint, flags: u32, raw:* const u8,  len_raw: int, out: * const u16, len_buff: int)->int;
-  pub fn WideCharToMultiByte(codePage:uint, flags: u32, raw:* const u16,  len_raw: int, out: * const u8, len_buff: int,def:* const c_void,useDef:bool)->int;
 }

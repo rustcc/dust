@@ -1,12 +1,13 @@
 #![allow(non_snake_case)]
 
 #![allow(unused_variables)]
-
+/*
 use libc::{c_int,c_void};
 
 use std::rc::Rc;
 use std::cell::RefCell;
 
+use super::super::win::wnd::*;
 use super::super::win::types::*;
 use super::super::win::api::*;
 use super::super::win::encode::*;
@@ -73,3 +74,4 @@ impl Button{
         }
   }
 }
+*/
